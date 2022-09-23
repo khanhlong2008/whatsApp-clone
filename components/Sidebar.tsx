@@ -11,8 +11,9 @@ import { signOut } from 'firebase/auth';
 import { auth, db } from '../config/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import * as EmailValidator from 'email-validator'
-import { addDoc, collection } from 'firebase/firestore';
-import { async } from '@firebase/util';
+import { addDoc, collection, query, where } from 'firebase/firestore';
+import { useCollection } from "react-firebase-hooks/firestore";
+import { Conversation } from '../types';
 const StyledContainer = styled.div`
     height: 100vh;
     min-width: 300px;
@@ -83,10 +84,21 @@ const Sidebar = () => {
 
     const isInvitingSelf = recipientEmail === loggedInUser?.email
 
+    // check if conversation already exits between the current logged in user and recipient
+    const queryGetConversationForCurrentUser = query(collection(db, 'conversation'), where('users', 'array-contains', loggedInUser?.email))
+
+    const [conversationSnapshot, __loading, __error] = useCollection(queryGetConversationForCurrentUser)
+
+    const IsConversationAlreadyExits = (recipientEmail: string) => {
+        return conversationSnapshot?.docs.find(conversation => (conversation.data() as Conversation).users.includes(recipientEmail))
+    }
+
     const CreateConversation = async () => {
         if (!recipientEmail) return
 
-        if (EmailValidator.validate(recipientEmail) && !isInvitingSelf) {
+        if (EmailValidator.validate(recipientEmail) &&
+            !isInvitingSelf &&
+            !IsConversationAlreadyExits(recipientEmail)) {
 
             await addDoc(collection(db, 'conversation'), {
                 users: [loggedInUser?.email, recipientEmail]
